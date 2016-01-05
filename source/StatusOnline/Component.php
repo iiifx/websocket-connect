@@ -13,11 +13,14 @@ class Component implements MessageComponentInterface
      * @var SplObjectStorage
      */
     protected $clientList;
-
+    /**
+     * @var SplObjectStorage
+     */
+    protected $idByConnection;
     /**
      * @var mixed[]
      */
-    protected $statusList = [ ];
+    protected $statusById;
 
     /**
      * @inheritdoc
@@ -25,6 +28,8 @@ class Component implements MessageComponentInterface
     public function __construct ()
     {
         $this->clientList = new SplObjectStorage();
+        $this->idByConnection = new SplObjectStorage();
+        $this->statusById = [ ];
     }
 
     /**
@@ -80,8 +85,21 @@ class Component implements MessageComponentInterface
      * @param int                 $id
      * @param string|null         $status
      */
-    protected function registerClient ( ConnectionInterface $connection, $id, $status = null )
+    protected function registerClient ( ConnectionInterface $connection, $id, $status )
     {
+        if ( $id > 0 ) {
+            # Регистрируем в списке ID
+            if ( !isset( $this->statusById[ $id ] ) ) {
+                $this->statusById[ $id ] = [
+                    'status' => null,
+                    'connections' => [ ],
+                ];
+            }
+            $this->statusById[ $id ][ 'status' ] = $status;
+            $this->statusById[ $id ][ 'connections' ][] = $connection;
+            # Регистрируем в списке соединений
+            $this->idByConnection->attach( $connection, $id );
+        }
     }
 
     /**
@@ -89,15 +107,36 @@ class Component implements MessageComponentInterface
      */
     protected function unregisterClient ( ConnectionInterface $connection )
     {
+        # Получаем ID
+        $id = $this->idByConnection->offsetGet( $connection );
+        if ( $id > 0 ) {
+            # Удаляем со списка ID
+            if ( isset( $this->statusById[ $id ] ) ) {
+                foreach ( $this->statusById[ $id ][ 'connections' ] as $i => $conn ) {
+                    if ( $conn === $connection ) {
+                        unset( $this->statusById[ $id ][ 'connections' ][ $i ] );
+                    }
+                }
+                # Удаляем полностью, если пусто
+                if ( !$this->statusById[ $id ][ 'connections' ] ) {
+                    unset( $this->statusById[ $id ] );
+                }
+            }
+        }
+        # Удаляем со списка соединений
+        $this->idByConnection->detach( $connection );
     }
 
     /**
      * @param int $id
      *
-     * @return string
+     * @return string|false
      */
     protected function getClientStatus ( $id )
     {
-
+        if ( isset( $this->statusById[ $id ][ 'status' ] ) ) {
+            return $this->statusById[ $id ][ 'status' ];
+        }
+        return false;
     }
 }
