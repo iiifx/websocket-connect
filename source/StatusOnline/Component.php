@@ -37,7 +37,10 @@ class Component implements MessageComponentInterface
      */
     public function onOpen ( ConnectionInterface $connection )
     {
+        echo 'Open [' . PHP_EOL;
         $this->clientList->attach( $connection );
+        echo '    -- Client List Attach' . PHP_EOL;
+        echo ']' . PHP_EOL;
     }
 
     /**
@@ -45,8 +48,12 @@ class Component implements MessageComponentInterface
      */
     public function onClose ( ConnectionInterface $connection )
     {
+        echo 'Close [' . PHP_EOL;
         $this->unregisterClient( $connection );
+        echo '    -- Unregister Client' . PHP_EOL;
         $this->clientList->detach( $connection );
+        echo '    -- Client List Detach' . PHP_EOL;
+        echo ']' . PHP_EOL;
     }
 
     /**
@@ -55,8 +62,12 @@ class Component implements MessageComponentInterface
      */
     public function onError ( ConnectionInterface $connection, Exception $exception )
     {
+        echo 'Error [' . PHP_EOL;
         $this->unregisterClient( $connection );
+        echo '    -- Unregister Client' . PHP_EOL;
         $connection->close();
+        echo '    -- Close WS Connection' . PHP_EOL;
+        echo ']' . PHP_EOL;
     }
 
     /**
@@ -65,9 +76,13 @@ class Component implements MessageComponentInterface
      */
     public function onMessage ( ConnectionInterface $connection, $json )
     {
+        echo 'Message [' . PHP_EOL;
+        echo '    -- ' . $json . PHP_EOL;
         $command = new Command( $json );
         if ( $command->isValid() ) {
+            echo '    Command Valid' . PHP_EOL;
             if ( $command->isRegisterRequest() ) {
+                echo '    -- Register Request ' . $command->getRegisterId() . ':' . $command->getRegisterStatus() . PHP_EOL;
                 $this->registerClient(
                     $connection,
                     $command->getRegisterId(),
@@ -75,9 +90,14 @@ class Component implements MessageComponentInterface
                 );
             }
             if ( $command->isStatusRequest() ) {
-                $connection->send( $this->getClientStatus( $command->getStatusId() ) );
+                echo '    -- Status Request ' . $command->getStatusId() . ' ->> ' . $this->getClientStatus( $command->getStatusId() ) . PHP_EOL;
+                $connection->send( json_encode( [
+                    'status' => $this->getClientStatus( $command->getStatusId() ),
+                    'h' => $command->getHash(),
+                ] ) );
             }
         }
+        echo ']' . PHP_EOL;
     }
 
     /**
@@ -108,7 +128,8 @@ class Component implements MessageComponentInterface
     protected function unregisterClient ( ConnectionInterface $connection )
     {
         # Получаем ID
-        $id = $this->idByConnection->offsetGet( $connection );
+        /** @noinspection PhpIllegalArrayKeyTypeInspection */
+        $id = $this->idByConnection[ $connection ];
         if ( $id > 0 ) {
             # Удаляем со списка ID
             if ( isset( $this->statusById[ $id ] ) ) {

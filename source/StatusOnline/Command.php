@@ -4,6 +4,7 @@ namespace StatusOnline;
 
 class Command
 {
+    const HASH = 'h';
     const COMMAND_REGISTER = 'register';
     const COMMAND_STATUS = 'status';
     const VALUE_ID = 'id';
@@ -42,7 +43,7 @@ class Command
      */
     public function isValid ()
     {
-        return $this->isRegisterRequest() || $this->isStatusRequest();
+        return ( $this->isRegisterRequest() || $this->isStatusRequest() ) && isset( $this->message[ static::HASH ] );
     }
 
     /**
@@ -59,6 +60,17 @@ class Command
     public function isStatusRequest ()
     {
         return isset( $this->message[ static::COMMAND_STATUS ][ static::VALUE_ID ] );
+    }
+
+    /**
+     * @return string|false
+     */
+    public function getHash ()
+    {
+        if ( $this->isValid() ) {
+            return $this->message[ static::HASH ];
+        }
+        return false;
     }
 
     /**
