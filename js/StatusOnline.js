@@ -11,14 +11,9 @@
  */
 function StatusOnline( host, port, secure ) {
     // Статусы
-    this.STATUS_ONLINE = 'O';
+    this.STATUS_ONLINE = 1;
     this.DEFAULT_STATUS = this.STATUS_ONLINE;
-    // Команды
-    this.HASH = 'h';
-    this.COMMAND_REGISTER = 'register';
-    this.COMMAND_STATUS = 'status';
-    this.VALUE_ID = 'id';
-    this.VALUE_STATUS = 'status';
+    this.REQUEST_ID = '_rid';
     // Параметры и соединение
     this.method = secure ? 'wss' : 'ws';
     this.host = host || window.location.host;
@@ -51,40 +46,70 @@ StatusOnline.prototype.onReady = function ( callback ) {
 /**
  *
  *
- * @param {int} userId
- * @param {string=} status
+ * @param {function} callback
  */
-StatusOnline.prototype.register = function ( userId, status ) {
+StatusOnline.prototype.getTotalStatus = function ( callback ) {
     var hash = new Date().getTime().toString() + Math.random().toString().replace( '.', '' );
     var message = {};
-    message[ this.HASH ] = hash;
-    message[ this.COMMAND_REGISTER ] = {};
-    message[ this.COMMAND_REGISTER ][ this.VALUE_ID ] = userId;
-    message[ this.COMMAND_REGISTER ][ this.VALUE_STATUS ] = status || this.DEFAULT_STATUS;
+    message[ this.REQUEST_ID ] = hash;
+    message[ 'total-status' ] = true;
+    this.messageCallbacks[ hash ] = function ( message ) {
+        if ( typeof callback === 'function' ) {
+            if ( message[ 'total-status' ] !== undefined ) {
+                callback( message[ 'total-status' ] );
+            }
+        }
+    };
     this.connection.send( JSON.stringify( message ) );
 };
 /**
  *
  *
  * @param {int} userId
- * @param {function} callback
+ * @param {function=} callback
  */
 StatusOnline.prototype.getStatus = function ( userId, callback ) {
-    if ( userId > 0 ) {
-        var hash = new Date().getTime().toString() + Math.random().toString().replace( '.', '' );
-        var message = {};
-        message[ this.HASH ] = hash;
-        message[ this.COMMAND_STATUS ] = {};
-        message[ this.COMMAND_STATUS ][ this.VALUE_ID ] = userId;
-        this.messageCallbacks[ hash ] = function ( message ) {
-            if ( typeof callback === 'function' ) {
-                if ( message.status !== undefined ) {
-                    callback( message.status );
-                }
+    var hash = new Date().getTime().toString() + Math.random().toString().replace( '.', '' );
+    var message = {};
+    message[ this.REQUEST_ID ] = hash;
+    message[ 'get-status' ] = {};
+    message[ 'get-status' ][ 'id' ] = userId;
+    this.messageCallbacks[ hash ] = function ( message ) {
+        if ( typeof callback === 'function' ) {
+            if ( message.status !== undefined ) {
+                callback( message.status );
             }
-        };
-        this.connection.send( JSON.stringify( message ) );
-    }
+        }
+    };
+    this.connection.send( JSON.stringify( message ) );
+};
+/**
+ *
+ *
+ * @param {string|int} status
+ */
+StatusOnline.prototype.changeStatus = function ( status ) {
+    var hash = new Date().getTime().toString() + Math.random().toString().replace( '.', '' );
+    var message = {};
+    message[ this.REQUEST_ID ] = hash;
+    message[ 'change-status' ] = {};
+    message[ 'change-status' ][ 'status' ] = status;
+    this.connection.send( JSON.stringify( message ) );
+};
+/**
+ *
+ *
+ * @param {int} id
+ * @param {string|int=} status
+ */
+StatusOnline.prototype.registerClient = function ( id, status ) {
+    var rid = new Date().getTime().toString() + Math.random().toString().replace( '.', '' );
+    var message = {};
+    message[ this.REQUEST_ID ] = rid;
+    message[ 'register' ] = {};
+    message[ 'register' ][ 'id' ] = id;
+    message[ 'register' ][ 'status' ] = status || this.DEFAULT_STATUS;
+    this.connection.send( JSON.stringify( message ) );
 };
 /**
  *
@@ -95,17 +120,20 @@ StatusOnline.prototype.getStatus = function ( userId, callback ) {
  * @private
  */
 StatusOnline.prototype._onMessage = function ( o, e ) {
-    console.log( 'Message [' );
-    console.log( '    -- Message ' + e.data );
     var message = JSON.parse( e.data );
-    if ( message[ o.HASH ] !== undefined ) {
-        var h = message[ o.HASH ];
-        console.log( '    -- Hash Found: ' + h );
-        if ( typeof this.messageCallbacks[ h ] === 'function' ) {
-            this.messageCallbacks[ h ]( message );
-            delete this.messageCallbacks[ h ];
-            console.log( '    -- Callback Executed' );
+    if ( message[ o.REQUEST_ID ] !== undefined ) {
+        var rid = message[ o.REQUEST_ID ];
+        if ( typeof this.messageCallbacks[ rid ] === 'function' ) {
+            this.messageCallbacks[ rid ]( message );
+            delete this.messageCallbacks[ rid ];
         }
     }
-    console.log( ']' );
+};
+/**
+ *
+ */
+StatusOnline.prototype.close = function () {
+    if ( this.connection ) {
+        this.connection.close();
+    }
 };
